@@ -59,6 +59,80 @@ export function makeHatchPath(
   return path;
 }
 
+// Wobbly oval — used for character head
+export function makeWobblyOval(
+  cx: number, cy: number, rx: number, ry: number, seed: number, amp = 1.2
+): SkPath {
+  const path = Skia.Path.Make();
+  const steps = 20;
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * Math.PI * 2;
+    const wobble = (seededRand(seed, i) - 0.5) * amp * 2;
+    const px = cx + Math.cos(angle) * (rx + wobble);
+    const py = cy + Math.sin(angle) * (ry + wobble);
+    if (i === 0) path.moveTo(px, py);
+    else path.lineTo(px, py);
+  }
+  path.close();
+  return path;
+}
+
+export interface CharacterPaths {
+  head: SkPath;
+  body: SkPath;
+  legs: SkPath;
+  eyes: SkPath;
+  mouth: SkPath;
+}
+
+// Draws a simple hand-drawn character at position (x,y) with given dimensions.
+// seed should change slowly for a "breathing" effect; facingRight flips the face.
+export function makeCharacterPaths(
+  x: number, y: number, w: number, h: number,
+  seed: number, facingRight: boolean
+): CharacterPaths {
+  const cx = x + w / 2;
+
+  // Head
+  const hcx = cx + (facingRight ? 1.5 : -1.5);
+  const hcy = y + h * 0.19;
+  const hrx = w * 0.3;
+  const hry = h * 0.17;
+  const head = makeWobblyOval(hcx, hcy, hrx, hry, seed, 1.2);
+
+  // Body (slightly wider at shoulders, narrower at waist)
+  const body = makeWobblyRect(
+    x + w * 0.16, y + h * 0.38,
+    w * 0.68, h * 0.34,
+    seed + 10, 1.2
+  );
+
+  // Legs — two simple lines
+  const legs = Skia.Path.Make();
+  const legTopY = y + h * 0.72;
+  // Left leg
+  legs.moveTo(cx - w * 0.16, legTopY);
+  legs.lineTo(cx - w * 0.22, y + h);
+  // Right leg
+  legs.moveTo(cx + w * 0.16, legTopY);
+  legs.lineTo(cx + w * 0.22, y + h);
+
+  // Eyes — two small filled dots
+  const eyeY = hcy - hry * 0.05;
+  const eyeOffX = hrx * 0.38;
+  const eyes = Skia.Path.Make();
+  eyes.addCircle(hcx - eyeOffX, eyeY, 1.8);
+  eyes.addCircle(hcx + eyeOffX, eyeY, 1.8);
+
+  // Mouth — small curved stroke
+  const mouth = Skia.Path.Make();
+  const mouthY = hcy + hry * 0.42;
+  mouth.moveTo(hcx - hrx * 0.3, mouthY);
+  mouth.quadTo(hcx, mouthY + hry * 0.32, hcx + hrx * 0.3, mouthY);
+
+  return { head, body, legs, eyes, mouth };
+}
+
 // Ruled notebook lines for the background
 export function makeRuledLines(w: number, h: number, spacing = 28): SkPath {
   const path = Skia.Path.Make();

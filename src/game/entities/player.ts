@@ -4,8 +4,8 @@ export interface Player {
   body: Body;
 }
 
-const JUMP_VELOCITY = -0.6;
-const MOVE_SPEED = 0.18;
+const JUMP_VELOCITY = -0.72;
+const MOVE_SPEED = 0.22;
 
 export function createPlayer(x: number, y: number): Player {
   return {

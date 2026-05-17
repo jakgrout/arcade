@@ -8,7 +8,7 @@ export default function App() {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     import('@shopify/react-native-skia/lib/module/web').then(({ LoadSkiaWeb }) =>
-      LoadSkiaWeb().then(() => setReady(true))
+      LoadSkiaWeb({ locateFile: () => '/canvaskit.wasm' }).then(() => setReady(true))
     );
   }, []);
 

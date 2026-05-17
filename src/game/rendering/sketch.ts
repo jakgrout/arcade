@@ -207,71 +207,54 @@ export interface Decoration {
   filled: boolean;
 }
 
-// Generates all static notebook decorations for the level.
-// platformList: array of {x, y, width, height}
+// Generates deliberate notebook-style annotations tied to the level layout.
+// Each decoration has a clear reason for being where it is.
 export function makeNotebookDecorations(
   platforms: { x: number; y: number; width: number; height: number }[],
-  levelWidth: number,
-  levelHeight: number
+  _levelWidth: number,
+  _levelHeight: number
 ): Decoration[] {
   const decs: Decoration[] = [];
-  const inkColors = ['#3a3020', '#1a4a2a', '#2a1a4a', '#4a1a1a'];
+  const darkInk = '#3a3020';
+  const blueInk = '#2a3a5a';
+  const redInk  = '#5a2020';
 
   platforms.forEach((p, i) => {
     if (i === 0) return; // skip ground
     const seed = i * 713;
-    const color = inkColors[i % inkColors.length];
+    const cx = p.x + p.width / 2;
 
-    // Star above-left of each platform
+    // Small star centered above every platform — marks it as a landing spot
     decs.push({
-      path: makeStar(p.x + p.width * 0.15, p.y - 22, 7 + seededRand(seed, 1) * 4, seed),
-      color, strokeWidth: 1.5, filled: false,
+      path: makeStar(cx, p.y - 18, 7, seed),
+      color: i === platforms.length - 1 ? redInk : darkInk,
+      strokeWidth: 1.4, filled: false,
     });
 
-    // Arrow pointing toward platform from the left
-    const arrowY = p.y + p.height / 2;
-    decs.push({
-      path: makeArrow(p.x - 40, arrowY, true, seed + 1),
-      color, strokeWidth: 1.5, filled: false,
-    });
+    // Right-pointing arrow just before the first three platforms — guides the player
+    if (i <= 3) {
+      decs.push({
+        path: makeArrow(p.x - 52, p.y - 6, true, seed + 1),
+        color: blueInk, strokeWidth: 1.4, filled: false,
+      });
+    }
 
-    // Spiral doodle on alternate platforms
+    // Spiral in the right margin of every other platform — pure doodle, stays out of the way
+    if (i % 2 === 1) {
+      decs.push({
+        path: makeSpiral(p.x + p.width + 20, p.y + p.height / 2, seed + 2),
+        color: darkInk, strokeWidth: 1.1, filled: false,
+      });
+    }
+
+    // X-mark on the far side of every other platform — like a treasure-map notation
     if (i % 2 === 0) {
       decs.push({
-        path: makeSpiral(p.x + p.width + 18, p.y - 10, seed + 2),
-        color, strokeWidth: 1.2, filled: false,
-      });
-    } else {
-      decs.push({
-        path: makeScribbleX(p.x + p.width + 14, p.y - 14, 7, seed + 3),
-        color, strokeWidth: 1.8, filled: false,
+        path: makeScribbleX(p.x + p.width + 16, p.y + p.height / 2, 6, seed + 3),
+        color: redInk, strokeWidth: 1.4, filled: false,
       });
     }
   });
-
-  // Scatter extra stars and spirals randomly across the level
-  for (let i = 0; i < 14; i++) {
-    const seed = i * 1337 + 42;
-    const sx = seededRand(seed, 0) * levelWidth;
-    const sy = seededRand(seed, 1) * levelHeight * 0.75 + 50;
-    const color = inkColors[i % inkColors.length];
-    if (i % 3 === 0) {
-      decs.push({
-        path: makeStar(sx, sy, 5 + seededRand(seed, 2) * 5, seed),
-        color, strokeWidth: 1.2, filled: false,
-      });
-    } else if (i % 3 === 1) {
-      decs.push({
-        path: makeSpiral(sx, sy, seed),
-        color, strokeWidth: 1.0, filled: false,
-      });
-    } else {
-      decs.push({
-        path: makeScribbleX(sx, sy, 5 + seededRand(seed, 3) * 4, seed),
-        color, strokeWidth: 1.3, filled: false,
-      });
-    }
-  }
 
   return decs;
 }

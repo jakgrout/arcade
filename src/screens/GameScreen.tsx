@@ -68,7 +68,7 @@ export default function GameScreen() {
 
   return (
     <View style={styles.container}>
-      <Canvas style={[styles.canvas, { height: canvasH }]}>
+      <Canvas style={{ width: '100%', height: canvasH }}>
         <Group transform={[{ translateX: -cam.x }, { translateY: -cam.y }]}>
           {/* Paper */}
           <Rect x={0} y={0} width={level1.width} height={level1.height} color="#f4eedf" />
@@ -131,7 +131,6 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4eedf' },
-  canvas:    { width: '100%' },
   controls: {
     height: CONTROLS_H,
     flexDirection: 'row',

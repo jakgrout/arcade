@@ -138,18 +138,59 @@ export function makeCharacterPaths(
   return { head, body, legs, eyes, nose, mouth };
 }
 
-// ── Notebook decorations ──────────────────────────────────────────────────
+// ── Background scenery (top of level) ────────────────────────────────────
 
-function makeStar(cx: number, cy: number, r: number, seed: number): SkPath {
+// Cloud: flat bottom, bumpy top, single closed outline
+function makeCloud(cx: number, baseY: number, w: number, seed: number): SkPath {
   const path = Skia.Path.Make();
-  const inner = r * 0.42;
-  const points = 5;
-  for (let i = 0; i <= points * 2; i++) {
-    const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-    const radius = i % 2 === 0 ? r : inner;
-    const wobble = (seededRand(seed, i + 100) - 0.5) * r * 0.2;
-    const px = cx + Math.cos(angle) * (radius + wobble);
-    const py = cy + Math.sin(angle) * (radius + wobble);
+  const hw = w / 2;
+  const bumpCount = 3 + Math.floor(seededRand(seed, 0) * 2);
+
+  // Bottom-left corner
+  path.moveTo(cx - hw + (seededRand(seed, 1) - 0.5) * 4, baseY);
+  // Bottom edge
+  path.lineTo(cx + hw + (seededRand(seed, 2) - 0.5) * 4, baseY + (seededRand(seed, 3) - 0.5) * 3);
+  // Right side up to top level
+  const topBase = baseY - w * 0.18;
+  path.lineTo(cx + hw + (seededRand(seed, 4) - 0.5) * 3, topBase);
+
+  // Bumpy top, right → left
+  for (let i = bumpCount; i >= 0; i--) {
+    const bx = cx - hw + (i / bumpCount) * w;
+    const valley = topBase + (seededRand(seed, i + 10) - 0.5) * 5;
+    if (i < bumpCount) {
+      const peakX = bx + (w / bumpCount) / 2 + (seededRand(seed, i + 20) - 0.5) * 10;
+      const peakY = baseY - w * (0.22 + seededRand(seed, i + 30) * 0.14);
+      path.lineTo(peakX, peakY);
+    }
+    path.lineTo(bx + (seededRand(seed, i + 40) - 0.5) * 4, valley);
+  }
+  path.close();
+  return path;
+}
+
+// Tree: wobbly trunk + round leafy crown
+function makeTree(cx: number, baseY: number, seed: number): SkPath {
+  const path = Skia.Path.Make();
+  const trunkH = 38 + seededRand(seed, 0) * 22;
+  const trunkW = 7 + seededRand(seed, 1) * 4;
+  const crownR = 28 + seededRand(seed, 2) * 16;
+  const trunkTop = baseY - trunkH;
+
+  // Trunk — two wobbly lines
+  path.moveTo(cx - trunkW / 2 + (seededRand(seed, 3) - 0.5) * 3, baseY);
+  path.lineTo(cx - trunkW / 2 + (seededRand(seed, 4) - 0.5) * 4, trunkTop + (seededRand(seed, 5) - 0.5) * 5);
+  path.moveTo(cx + trunkW / 2 + (seededRand(seed, 6) - 0.5) * 3, baseY);
+  path.lineTo(cx + trunkW / 2 + (seededRand(seed, 7) - 0.5) * 4, trunkTop + (seededRand(seed, 8) - 0.5) * 5);
+
+  // Crown — wobbly oval
+  const crownCy = trunkTop - crownR * 0.7;
+  const steps = 22;
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * Math.PI * 2;
+    const wobble = (seededRand(seed, i + 50) - 0.5) * 6;
+    const px = cx + Math.cos(angle) * (crownR + wobble);
+    const py = crownCy + Math.sin(angle) * (crownR * 0.85 + wobble * 0.6);
     if (i === 0) path.moveTo(px, py);
     else path.lineTo(px, py);
   }
@@ -157,46 +198,56 @@ function makeStar(cx: number, cy: number, r: number, seed: number): SkPath {
   return path;
 }
 
-function makeSpiral(cx: number, cy: number, seed: number): SkPath {
+// Sun: wobbly circle + hand-drawn rays
+function makeSun(cx: number, cy: number, seed: number): SkPath {
   const path = Skia.Path.Make();
-  const steps = 28;
+  const r = 24 + seededRand(seed, 0) * 10;
+
+  // Circle
+  const steps = 20;
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const angle = t * 2.5 * Math.PI * 2;
-    const r = t * 11 + 2;
-    const wobble = (seededRand(seed, i + 200) - 0.5) * 1.8;
+    const angle = (i / steps) * Math.PI * 2;
+    const wobble = (seededRand(seed, i) - 0.5) * 3;
     const px = cx + Math.cos(angle) * (r + wobble);
     const py = cy + Math.sin(angle) * (r + wobble);
     if (i === 0) path.moveTo(px, py);
     else path.lineTo(px, py);
   }
+  path.close();
+
+  // Rays — 8 slightly irregular lines
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2 + seededRand(seed, i + 100) * 0.15;
+    const inner = r + 5;
+    const outer = r + 14 + seededRand(seed, i + 110) * 8;
+    const wobble = (seededRand(seed, i + 120) - 0.5) * 4;
+    path.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+    path.lineTo(cx + Math.cos(angle) * outer + wobble, cy + Math.sin(angle) * outer + wobble);
+  }
   return path;
 }
 
-function makeArrow(x: number, y: number, right: boolean, seed: number): SkPath {
+// Bird: simple hand-drawn M/V shape (two curved strokes)
+function makeBird(cx: number, cy: number, seed: number): SkPath {
   const path = Skia.Path.Make();
-  const d = right ? 1 : -1;
-  const len = 22 + seededRand(seed, 300) * 8;
-  // shaft with slight wobble
-  const midY = y + (seededRand(seed, 301) - 0.5) * 3;
-  path.moveTo(x, y + (seededRand(seed, 302) - 0.5) * 2);
-  path.lineTo(x + d * len * 0.5, midY);
-  path.lineTo(x + d * len, y + (seededRand(seed, 303) - 0.5) * 2);
-  // arrowhead
-  path.moveTo(x + d * len, y);
-  path.lineTo(x + d * (len - 9), y - 6 + (seededRand(seed, 304) - 0.5) * 2);
-  path.moveTo(x + d * len, y);
-  path.lineTo(x + d * (len - 9), y + 6 + (seededRand(seed, 305) - 0.5) * 2);
-  return path;
-}
-
-function makeScribbleX(cx: number, cy: number, r: number, seed: number): SkPath {
-  const path = Skia.Path.Make();
-  const w = (seededRand(seed, 400) - 0.5) * 2;
-  path.moveTo(cx - r + (seededRand(seed, 401) - 0.5) * w, cy - r);
-  path.lineTo(cx + r + (seededRand(seed, 402) - 0.5) * w, cy + r);
-  path.moveTo(cx + r + (seededRand(seed, 403) - 0.5) * w, cy - r);
-  path.lineTo(cx - r + (seededRand(seed, 404) - 0.5) * w, cy + r);
+  const w = 14 + seededRand(seed, 0) * 8;
+  const dip = 4 + seededRand(seed, 1) * 3;
+  // left wing
+  path.moveTo(cx, cy + (seededRand(seed, 2) - 0.5) * 2);
+  path.quadTo(
+    cx - w * 0.45 + (seededRand(seed, 3) - 0.5) * 3,
+    cy - dip + (seededRand(seed, 4) - 0.5) * 2,
+    cx - w + (seededRand(seed, 5) - 0.5) * 4,
+    cy + (seededRand(seed, 6) - 0.5) * 3
+  );
+  // right wing
+  path.moveTo(cx, cy + (seededRand(seed, 7) - 0.5) * 2);
+  path.quadTo(
+    cx + w * 0.45 + (seededRand(seed, 8) - 0.5) * 3,
+    cy - dip + (seededRand(seed, 9) - 0.5) * 2,
+    cx + w + (seededRand(seed, 10) - 0.5) * 4,
+    cy + (seededRand(seed, 11) - 0.5) * 3
+  );
   return path;
 }
 
@@ -204,57 +255,57 @@ export interface Decoration {
   path: SkPath;
   color: string;
   strokeWidth: number;
-  filled: boolean;
+  fill?: string;
 }
 
-// Generates deliberate notebook-style annotations tied to the level layout.
-// Each decoration has a clear reason for being where it is.
+// Places large hand-drawn scenery across the top of the level.
+// All elements sit above y=165 so they never overlap platforms.
 export function makeNotebookDecorations(
-  platforms: { x: number; y: number; width: number; height: number }[],
+  _platforms: { x: number; y: number; width: number; height: number }[],
   _levelWidth: number,
   _levelHeight: number
 ): Decoration[] {
+  const ink = '#3a3020';
+  const lightFill = '#ede6d3';
   const decs: Decoration[] = [];
-  const darkInk = '#3a3020';
-  const blueInk = '#2a3a5a';
-  const redInk  = '#5a2020';
 
-  platforms.forEach((p, i) => {
-    if (i === 0) return; // skip ground
-    const seed = i * 713;
-    const cx = p.x + p.width / 2;
+  // Sun — top-left, early in the level
+  decs.push({ path: makeSun(130, 72, 1), color: ink, strokeWidth: 1.8 });
 
-    // Small star centered above every platform — marks it as a landing spot
-    decs.push({
-      path: makeStar(cx, p.y - 18, 7, seed),
-      color: i === platforms.length - 1 ? redInk : darkInk,
-      strokeWidth: 1.4, filled: false,
-    });
+  // Clouds spread across the level
+  const clouds: [number, number, number, number][] = [
+    [360, 90, 110, 10],
+    [780, 65, 130, 20],
+    [1180, 85, 100, 30],
+    [1580, 70, 120, 40],
+    [1880, 88, 95, 50],
+  ];
+  for (const [cx, y, w, seed] of clouds) {
+    decs.push({ path: makeCloud(cx, y, w, seed), color: ink, strokeWidth: 1.6, fill: lightFill });
+  }
 
-    // Right-pointing arrow just before the first three platforms — guides the player
-    if (i <= 3) {
-      decs.push({
-        path: makeArrow(p.x - 52, p.y - 6, true, seed + 1),
-        color: blueInk, strokeWidth: 1.4, filled: false,
-      });
-    }
+  // Trees — spread out, bases at y=165 so they sit just above the highest platform
+  const trees: [number, number, number][] = [
+    [240, 165, 100],
+    [560, 165, 200],
+    [960, 165, 300],
+    [1380, 165, 400],
+    [1720, 165, 500],
+    [1960, 165, 600],
+  ];
+  for (const [cx, baseY, seed] of trees) {
+    decs.push({ path: makeTree(cx, baseY, seed), color: ink, strokeWidth: 1.8 });
+  }
 
-    // Spiral in the right margin of every other platform — pure doodle, stays out of the way
-    if (i % 2 === 1) {
-      decs.push({
-        path: makeSpiral(p.x + p.width + 20, p.y + p.height / 2, seed + 2),
-        color: darkInk, strokeWidth: 1.1, filled: false,
-      });
-    }
-
-    // X-mark on the far side of every other platform — like a treasure-map notation
-    if (i % 2 === 0) {
-      decs.push({
-        path: makeScribbleX(p.x + p.width + 16, p.y + p.height / 2, 6, seed + 3),
-        color: redInk, strokeWidth: 1.4, filled: false,
-      });
-    }
-  });
+  // Birds — small clusters at the top
+  const birds: [number, number, number][] = [
+    [490, 44, 700], [550, 36, 710], [610, 50, 720],
+    [1050, 40, 730], [1110, 52, 740],
+    [1500, 38, 750], [1560, 46, 760],
+  ];
+  for (const [cx, cy, seed] of birds) {
+    decs.push({ path: makeBird(cx, cy, seed), color: ink, strokeWidth: 1.5 });
+  }
 
   return decs;
 }

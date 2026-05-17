@@ -92,18 +92,13 @@ export default function GameScreen() {
           {/* Left margin */}
           <Path path={levelPaths.margin} color="#e8a0a0" style="stroke" strokeWidth={1} />
 
-          {/* Notebook decorations (static doodles) */}
+          {/* Background scenery */}
           {levelPaths.decorations.map((dec, i) => (
-            <Path
-              key={i}
-              path={dec.path}
-              color={dec.color}
-              style="stroke"
-              strokeWidth={dec.strokeWidth}
-              strokeCap="round"
-              strokeJoin="round"
-              opacity={0.55}
-            />
+            <Group key={i} opacity={0.6}>
+              {dec.fill && <Path path={dec.path} color={dec.fill} />}
+              <Path path={dec.path} color={dec.color} style="stroke"
+                strokeWidth={dec.strokeWidth} strokeCap="round" strokeJoin="round" />
+            </Group>
           ))}
 
           {/* Platforms */}

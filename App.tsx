@@ -1,9 +1,21 @@
-import { Suspense, lazy } from 'react';
-import { Platform, View } from 'react-native';
+import { Component, Suspense, lazy, type ReactNode } from 'react';
+import { Platform, Text, View } from 'react-native';
 
-// GameScreen must be lazy-loaded on web so that Skia.web.js
-// (which reads global.CanvasKit at module evaluation time) is
-// only evaluated after LoadSkiaWeb has set global.CanvasKit.
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#f4eedf', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Text style={{ color: '#c00', fontSize: 14, fontFamily: 'monospace' }}>{this.state.error}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const GameScreen = lazy(async () => {
   if (Platform.OS === 'web') {
     const { LoadSkiaWeb } = await import('@shopify/react-native-skia/lib/module/web');
@@ -14,8 +26,10 @@ const GameScreen = lazy(async () => {
 
 export default function App() {
   return (
-    <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#f5f0e8' }} />}>
-      <GameScreen />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#f5f0e8' }} />}>
+        <GameScreen />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

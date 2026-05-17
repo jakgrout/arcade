@@ -1,4 +1,4 @@
-import { Canvas, Group, Line, Path, Rect, vec } from '@shopify/react-native-skia';
+import { Canvas, Group, Path, Rect } from '@shopify/react-native-skia';
 import { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
@@ -6,20 +6,33 @@ import { useGameLoop } from '../game/engine/gameLoop';
 import { stepBody } from '../game/engine/physics';
 import { createPlayer, jumpPlayer, movePlayer, type Player } from '../game/entities/player';
 import { level1 } from '../game/levels/level1';
-import { makeCharacterPaths, makeHatchPath, makeRuledLines, makeWobblyRect } from '../game/rendering/sketch';
+import {
+  makeCharacterPaths,
+  makeHatchPath,
+  makeNotebookDecorations,
+  makeRuledLines,
+  makeWobblyRect,
+} from '../game/rendering/sketch';
 
 const CONTROLS_H = 100;
 
 function useLevelPaths() {
-  return useMemo(() => ({
+  return useMemo(() => {
+    const { Skia } = require('@shopify/react-native-skia');
+    const margin = Skia.Path.Make();
+    margin.moveTo(52, 0);
+    margin.lineTo(52, level1.height);
+    return {
     ruled: makeRuledLines(level1.width, level1.height),
+    margin,
     platforms: level1.platforms.map((p, i) => ({
-      fill:   makeWobblyRect(p.x, p.y, p.width, p.height, i * 137 + 1,  1.5),
-      outline:makeWobblyRect(p.x, p.y, p.width, p.height, i * 137 + 50, 2.5),
-      shadow: makeWobblyRect(p.x + 3, p.y + 3, p.width, p.height, i * 137 + 99, 1),
-      hatch:  makeHatchPath(p.x, p.y, p.width, p.height),
+      fill:    makeWobblyRect(p.x, p.y, p.width, p.height, i * 137 + 1,  1.5),
+      outline: makeWobblyRect(p.x, p.y, p.width, p.height, i * 137 + 50, 2.5),
+      shadow:  makeWobblyRect(p.x + 3, p.y + 3, p.width, p.height, i * 137 + 99, 1),
+      hatch:   makeHatchPath(p.x, p.y, p.width, p.height),
     })),
-  }), []);
+    decorations: makeNotebookDecorations(level1.platforms, level1.width, level1.height),
+  }; }, []);
 }
 
 export default function GameScreen() {
@@ -49,7 +62,6 @@ export default function GameScreen() {
     p = { ...p, body: stepBody(p.body, level1.platforms, deltaMs) };
     playerRef.current = p;
 
-    // Smooth camera follow
     const { pos } = p.body;
     const targetX = Math.max(0, Math.min(pos.x - screenW * 0.4, level1.width - screenW));
     const targetY = Math.max(0, Math.min(pos.y - canvasH * 0.5, level1.height - canvasH));
@@ -62,9 +74,10 @@ export default function GameScreen() {
 
   const { pos, width: pw, height: ph } = playerRef.current.body;
   const cam = cameraRef.current;
-
-  const charSeed = Math.floor(frameRef.current / 120) % 80;
-  const char = makeCharacterPaths(pos.x, pos.y, pw, ph, charSeed, facingRef.current);
+  const frame = frameRef.current;
+  const isMoving = inputRef.current.dir !== 0;
+  const charSeed = Math.floor(frame / 120) % 80;
+  const char = makeCharacterPaths(pos.x, pos.y, pw, ph, charSeed, facingRef.current, frame, isMoving);
 
   return (
     <View style={styles.container}>
@@ -77,7 +90,21 @@ export default function GameScreen() {
           <Path path={levelPaths.ruled} color="#d4c9b0" style="stroke" strokeWidth={0.6} />
 
           {/* Left margin */}
-          <Line p1={vec(52, 0)} p2={vec(52, level1.height)} color="#e8a0a0" strokeWidth={1} />
+          <Path path={levelPaths.margin} color="#e8a0a0" style="stroke" strokeWidth={1} />
+
+          {/* Notebook decorations (static doodles) */}
+          {levelPaths.decorations.map((dec, i) => (
+            <Path
+              key={i}
+              path={dec.path}
+              color={dec.color}
+              style="stroke"
+              strokeWidth={dec.strokeWidth}
+              strokeCap="round"
+              strokeJoin="round"
+              opacity={0.55}
+            />
+          ))}
 
           {/* Platforms */}
           {levelPaths.platforms.map(({ fill, outline, shadow, hatch }, i) => (
@@ -92,16 +119,13 @@ export default function GameScreen() {
 
           {/* Character */}
           <Group>
-            {/* Body fill + outline */}
             <Path path={char.body}  color="#d8d0be" />
-            <Path path={char.body}  color="#1a1510" style="stroke" strokeWidth={2} strokeCap="round" strokeJoin="round" />
-            {/* Head fill + outline */}
+            <Path path={char.body}  color="#1a1510" style="stroke" strokeWidth={2}   strokeCap="round" strokeJoin="round" />
             <Path path={char.head}  color="#e8dfc8" />
-            <Path path={char.head}  color="#1a1510" style="stroke" strokeWidth={2} strokeCap="round" strokeJoin="round" />
-            {/* Legs */}
+            <Path path={char.head}  color="#1a1510" style="stroke" strokeWidth={2}   strokeCap="round" strokeJoin="round" />
             <Path path={char.legs}  color="#1a1510" style="stroke" strokeWidth={2.5} strokeCap="round" />
-            {/* Face */}
             <Path path={char.eyes}  color="#1a1510" />
+            <Path path={char.nose}  color="#1a1510" style="stroke" strokeWidth={1.5} strokeCap="round" />
             <Path path={char.mouth} color="#1a1510" style="stroke" strokeWidth={1.5} strokeCap="round" />
           </Group>
         </Group>

@@ -19,7 +19,6 @@ function addWobblyEdge(
   const steps = Math.max(2, Math.floor(len / 18));
   const nx = -dy / len;
   const ny = dx / len;
-
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const offset = (seededRand(seed, seedOffset + i) - 0.5) * amp * 2;
@@ -27,8 +26,6 @@ function addWobblyEdge(
   }
 }
 
-// Returns a closed wobbly rectangle path. Seed must be stable across renders
-// for static elements so they don't jitter.
 export function makeWobblyRect(
   x: number, y: number, w: number, h: number,
   seed: number, amp = 2.5
@@ -43,7 +40,6 @@ export function makeWobblyRect(
   return path;
 }
 
-// Diagonal hatch lines clipped to a rect
 export function makeHatchPath(
   x: number, y: number, w: number, h: number, spacing = 8
 ): SkPath {
@@ -59,7 +55,6 @@ export function makeHatchPath(
   return path;
 }
 
-// Wobbly oval — used for character head
 export function makeWobblyOval(
   cx: number, cy: number, rx: number, ry: number, seed: number, amp = 1.2
 ): SkPath {
@@ -82,55 +77,203 @@ export interface CharacterPaths {
   body: SkPath;
   legs: SkPath;
   eyes: SkPath;
+  nose: SkPath;
   mouth: SkPath;
 }
 
-// Draws a simple hand-drawn character at position (x,y) with given dimensions.
-// seed should change slowly for a "breathing" effect; facingRight flips the face.
 export function makeCharacterPaths(
   x: number, y: number, w: number, h: number,
-  seed: number, facingRight: boolean
+  seed: number, facingRight: boolean,
+  frame: number, isMoving: boolean
 ): CharacterPaths {
   const cx = x + w / 2;
+  const dir = facingRight ? 1 : -1;
 
-  // Head
-  const hcx = cx + (facingRight ? 1.5 : -1.5);
+  // Head — offset toward facing direction
+  const hcx = cx + dir * 2.5;
   const hcy = y + h * 0.19;
   const hrx = w * 0.3;
   const hry = h * 0.17;
   const head = makeWobblyOval(hcx, hcy, hrx, hry, seed, 1.2);
 
-  // Body (slightly wider at shoulders, narrower at waist)
+  // Body
   const body = makeWobblyRect(
     x + w * 0.16, y + h * 0.38,
     w * 0.68, h * 0.34,
     seed + 10, 1.2
   );
 
-  // Legs — two simple lines
-  const legs = Skia.Path.Make();
+  // Legs — walk cycle when moving
   const legTopY = y + h * 0.72;
-  // Left leg
+  const swing = isMoving ? Math.sin(frame * 0.012) * 9 : 0;
+  const liftL = isMoving ? Math.max(0, Math.sin(frame * 0.012)) * -6 : 0;
+  const liftR = isMoving ? Math.max(0, Math.sin(frame * 0.012 + Math.PI)) * -6 : 0;
+  const legs = Skia.Path.Make();
   legs.moveTo(cx - w * 0.16, legTopY);
-  legs.lineTo(cx - w * 0.22, y + h);
-  // Right leg
+  legs.lineTo(cx - w * 0.18 - swing * dir, y + h + liftL);
   legs.moveTo(cx + w * 0.16, legTopY);
-  legs.lineTo(cx + w * 0.22, y + h);
+  legs.lineTo(cx + w * 0.18 + swing * dir, y + h + liftR);
 
-  // Eyes — two small filled dots
-  const eyeY = hcy - hry * 0.05;
-  const eyeOffX = hrx * 0.38;
+  // Eyes: near eye (front, larger) and far eye (back, smaller)
+  const eyeY = hcy - hry * 0.08;
+  const nearEyeX = hcx + dir * hrx * 0.42;
+  const farEyeX  = hcx - dir * hrx * 0.15;
   const eyes = Skia.Path.Make();
-  eyes.addCircle(hcx - eyeOffX, eyeY, 1.8);
-  eyes.addCircle(hcx + eyeOffX, eyeY, 1.8);
+  eyes.addCircle(nearEyeX, eyeY, 2.4);
+  eyes.addCircle(farEyeX,  eyeY, 1.4);
 
-  // Mouth — small curved stroke
+  // Nose — small bump on facing side
+  const nose = Skia.Path.Make();
+  const noseX = hcx + dir * hrx * 0.52;
+  nose.moveTo(noseX - dir * 2, hcy + hry * 0.05);
+  nose.quadTo(noseX + dir * 4, hcy + hry * 0.2, noseX - dir * 1, hcy + hry * 0.38);
+
+  // Mouth — shifted toward facing side
   const mouth = Skia.Path.Make();
-  const mouthY = hcy + hry * 0.42;
-  mouth.moveTo(hcx - hrx * 0.3, mouthY);
-  mouth.quadTo(hcx, mouthY + hry * 0.32, hcx + hrx * 0.3, mouthY);
+  const mouthY = hcy + hry * 0.52;
+  const mouthCx = hcx + dir * hrx * 0.1;
+  mouth.moveTo(mouthCx - hrx * 0.28, mouthY);
+  mouth.quadTo(mouthCx, mouthY + hry * 0.28, mouthCx + hrx * 0.28, mouthY);
 
-  return { head, body, legs, eyes, mouth };
+  return { head, body, legs, eyes, nose, mouth };
+}
+
+// ── Notebook decorations ──────────────────────────────────────────────────
+
+function makeStar(cx: number, cy: number, r: number, seed: number): SkPath {
+  const path = Skia.Path.Make();
+  const inner = r * 0.42;
+  const points = 5;
+  for (let i = 0; i <= points * 2; i++) {
+    const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : inner;
+    const wobble = (seededRand(seed, i + 100) - 0.5) * r * 0.2;
+    const px = cx + Math.cos(angle) * (radius + wobble);
+    const py = cy + Math.sin(angle) * (radius + wobble);
+    if (i === 0) path.moveTo(px, py);
+    else path.lineTo(px, py);
+  }
+  path.close();
+  return path;
+}
+
+function makeSpiral(cx: number, cy: number, seed: number): SkPath {
+  const path = Skia.Path.Make();
+  const steps = 28;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const angle = t * 2.5 * Math.PI * 2;
+    const r = t * 11 + 2;
+    const wobble = (seededRand(seed, i + 200) - 0.5) * 1.8;
+    const px = cx + Math.cos(angle) * (r + wobble);
+    const py = cy + Math.sin(angle) * (r + wobble);
+    if (i === 0) path.moveTo(px, py);
+    else path.lineTo(px, py);
+  }
+  return path;
+}
+
+function makeArrow(x: number, y: number, right: boolean, seed: number): SkPath {
+  const path = Skia.Path.Make();
+  const d = right ? 1 : -1;
+  const len = 22 + seededRand(seed, 300) * 8;
+  // shaft with slight wobble
+  const midY = y + (seededRand(seed, 301) - 0.5) * 3;
+  path.moveTo(x, y + (seededRand(seed, 302) - 0.5) * 2);
+  path.lineTo(x + d * len * 0.5, midY);
+  path.lineTo(x + d * len, y + (seededRand(seed, 303) - 0.5) * 2);
+  // arrowhead
+  path.moveTo(x + d * len, y);
+  path.lineTo(x + d * (len - 9), y - 6 + (seededRand(seed, 304) - 0.5) * 2);
+  path.moveTo(x + d * len, y);
+  path.lineTo(x + d * (len - 9), y + 6 + (seededRand(seed, 305) - 0.5) * 2);
+  return path;
+}
+
+function makeScribbleX(cx: number, cy: number, r: number, seed: number): SkPath {
+  const path = Skia.Path.Make();
+  const w = (seededRand(seed, 400) - 0.5) * 2;
+  path.moveTo(cx - r + (seededRand(seed, 401) - 0.5) * w, cy - r);
+  path.lineTo(cx + r + (seededRand(seed, 402) - 0.5) * w, cy + r);
+  path.moveTo(cx + r + (seededRand(seed, 403) - 0.5) * w, cy - r);
+  path.lineTo(cx - r + (seededRand(seed, 404) - 0.5) * w, cy + r);
+  return path;
+}
+
+export interface Decoration {
+  path: SkPath;
+  color: string;
+  strokeWidth: number;
+  filled: boolean;
+}
+
+// Generates all static notebook decorations for the level.
+// platformList: array of {x, y, width, height}
+export function makeNotebookDecorations(
+  platforms: { x: number; y: number; width: number; height: number }[],
+  levelWidth: number,
+  levelHeight: number
+): Decoration[] {
+  const decs: Decoration[] = [];
+  const inkColors = ['#3a3020', '#1a4a2a', '#2a1a4a', '#4a1a1a'];
+
+  platforms.forEach((p, i) => {
+    if (i === 0) return; // skip ground
+    const seed = i * 713;
+    const color = inkColors[i % inkColors.length];
+
+    // Star above-left of each platform
+    decs.push({
+      path: makeStar(p.x + p.width * 0.15, p.y - 22, 7 + seededRand(seed, 1) * 4, seed),
+      color, strokeWidth: 1.5, filled: false,
+    });
+
+    // Arrow pointing toward platform from the left
+    const arrowY = p.y + p.height / 2;
+    decs.push({
+      path: makeArrow(p.x - 40, arrowY, true, seed + 1),
+      color, strokeWidth: 1.5, filled: false,
+    });
+
+    // Spiral doodle on alternate platforms
+    if (i % 2 === 0) {
+      decs.push({
+        path: makeSpiral(p.x + p.width + 18, p.y - 10, seed + 2),
+        color, strokeWidth: 1.2, filled: false,
+      });
+    } else {
+      decs.push({
+        path: makeScribbleX(p.x + p.width + 14, p.y - 14, 7, seed + 3),
+        color, strokeWidth: 1.8, filled: false,
+      });
+    }
+  });
+
+  // Scatter extra stars and spirals randomly across the level
+  for (let i = 0; i < 14; i++) {
+    const seed = i * 1337 + 42;
+    const sx = seededRand(seed, 0) * levelWidth;
+    const sy = seededRand(seed, 1) * levelHeight * 0.75 + 50;
+    const color = inkColors[i % inkColors.length];
+    if (i % 3 === 0) {
+      decs.push({
+        path: makeStar(sx, sy, 5 + seededRand(seed, 2) * 5, seed),
+        color, strokeWidth: 1.2, filled: false,
+      });
+    } else if (i % 3 === 1) {
+      decs.push({
+        path: makeSpiral(sx, sy, seed),
+        color, strokeWidth: 1.0, filled: false,
+      });
+    } else {
+      decs.push({
+        path: makeScribbleX(sx, sy, 5 + seededRand(seed, 3) * 4, seed),
+        color, strokeWidth: 1.3, filled: false,
+      });
+    }
+  }
+
+  return decs;
 }
 
 // Ruled notebook lines for the background

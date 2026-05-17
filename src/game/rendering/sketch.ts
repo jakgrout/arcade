@@ -284,19 +284,6 @@ export function makeNotebookDecorations(
     decs.push({ path: makeCloud(cx, y, w, seed), color: ink, strokeWidth: 1.6, fill: lightFill });
   }
 
-  // Trees — spread out, bases at y=165 so they sit just above the highest platform
-  const trees: [number, number, number][] = [
-    [240, 165, 100],
-    [560, 165, 200],
-    [960, 165, 300],
-    [1380, 165, 400],
-    [1720, 165, 500],
-    [1960, 165, 600],
-  ];
-  for (const [cx, baseY, seed] of trees) {
-    decs.push({ path: makeTree(cx, baseY, seed), color: ink, strokeWidth: 1.8 });
-  }
-
   // Birds — small clusters at the top
   const birds: [number, number, number][] = [
     [490, 44, 700], [550, 36, 710], [610, 50, 720],
